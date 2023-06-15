@@ -1,0 +1,8 @@
+curl -X POST https://xagyto0he7.execute-api.us-east-2.amazonaws.com/test/reserveCourt \
+    -H "Content-Type: application/json" \
+    -d '{"operation": "create", "payload": {"Item": {"UserTime": "nyar99@gmail.com11:00 PM","Time": "11:00 PM","DaysAhead": 2,"IsIndoors": True,"Length":120,"User": "nyar99@gmail.com","Pass": "Nav1Swa2"}}}'
+
+curl -X POST https://v0kjlg9u96.execute-api.us-east-2.amazonaws.com/Prod/reserveCourt \
+    -H "Content-Type: application/json" \
+    -d '{"User":"nyar99@gmail.com", "Pass": "Nav1Swa2", "Time":"8:00 PM", "Length": 120, "IsIndoors": False, "DaysAhead": 2}'
+
