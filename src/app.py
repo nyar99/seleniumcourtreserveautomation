@@ -5,7 +5,6 @@ from selenium import webdriver
 from selenium.webdriver.common.by import By
 import time as t
 from datetime import datetime
-from datetime import date
 import ast
 
 nextDayButtonClass = 'k-nav-next'
@@ -19,19 +18,19 @@ submitButtonClass = 'btn-submit'
 slotButtonClass = 'slot-btn'
 
 # uncomment before deploying
-# chrome_options = webdriver.ChromeOptions()
-# chrome_options.binary_location = "/opt/chrome/chrome"
-# chrome_options.add_argument("--headless")
-# chrome_options.add_argument("--no-sandbox")
-# chrome_options.add_argument("--disable-dev-shm-usage")
-# chrome_options.add_argument("--disable-gpu")
-# chrome_options.add_argument("--disable-dev-tools")
-# chrome_options.add_argument("--no-zygote")
-# chrome_options.add_argument("--single-process")
-# chrome_options.add_argument("window-size=2560x1440")
-# chrome_options.add_argument("--user-data-dir=/tmp/chrome-user-data")
-# chrome_options.add_argument("--remote-debugging-port=9222")
-# driver = webdriver.Chrome("/opt/chromedriver", options=chrome_options)
+chrome_options = webdriver.ChromeOptions()
+chrome_options.binary_location = "/opt/chrome/chrome"
+chrome_options.add_argument("--headless")
+chrome_options.add_argument("--no-sandbox")
+chrome_options.add_argument("--disable-dev-shm-usage")
+chrome_options.add_argument("--disable-gpu")
+chrome_options.add_argument("--disable-dev-tools")
+chrome_options.add_argument("--no-zygote")
+chrome_options.add_argument("--single-process")
+chrome_options.add_argument("window-size=2560x1440")
+chrome_options.add_argument("--user-data-dir=/tmp/chrome-user-data")
+chrome_options.add_argument("--remote-debugging-port=9222")
+driver = webdriver.Chrome("/opt/chromedriver", options=chrome_options)
 driver = webdriver.Chrome()
 
 def format_time(input_time: datetime) -> str:
@@ -138,7 +137,6 @@ def reserve_court(timeToCourtElement: dict, time: str, length: int) -> bool:
     except Exception as e:
         print(e)
         return False
-#samiam password: tP5$&C9%
 def handler(event, context):
     item = event['body']
     item = item.replace('true', 'True')
@@ -163,5 +161,5 @@ def handler(event, context):
         firstExecution = False
 
 # comment before deploying
-item = '{"User":"nyar99@gmail.com", "Pass": "Nav1Swa2", "Time":"10:00 PM", "Length": 60, "IsIndoors": false, "DaysAhead": 1}'
-handler({'body':item}, None)
+# item = '{"User":"nyar99@gmail.com", "Pass": "*********", "Time":"10:00 PM", "Length": 60, "IsIndoors": false, "DaysAhead": 1}'
+# handler({'body':item}, None)
