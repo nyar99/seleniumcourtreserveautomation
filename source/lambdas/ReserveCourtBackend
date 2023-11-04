@@ -1,0 +1,184 @@
+import boto3
+import json
+import base64
+import boto3
+import re
+import os
+from twilio.rest import Client
+from boto3.dynamodb.conditions import Key, Attr
+
+TWILIO_SID = os.environ['TWILIO_ACCOUNT_SID']
+TWILIO_AUTH = os.environ['TWILIO_AUTH_TOKEN']
+TWILIO_SOURCE = os.environ['TWILIO_SOURCE_NUMBER']
+
+# define Twilio client
+client = Client(TWILIO_SID, TWILIO_AUTH)
+
+
+# define the DynamoDB table that Lambda will connect to
+courtReservationTable = "ReserveCourt"
+userTable = "UserInfo"
+
+# create the DynamoDB resource
+courtTable = boto3.resource('dynamodb').Table(courtReservationTable)
+userTable = boto3.resource('dynamodb').Table(userTable)
+ERROR_MESSAGE = "Either you fucked up or I did. Send HELP for help."
+EMPTY_MESSAGE = "<?xml version=\"1.0\" encoding=\"UTF-8\"?><Response><Message> </Message></Response>"
+SUCCESSFUL_REGISTRY = "<?xml version=\"1.0\" encoding=\"UTF-8\"?><Response><Message> Successful registration </Message></Response>"
+
+operations = ['REGISTER', 'HELP', 'VIEW', 'DELETE', 'RESERVE']
+
+def send_sms(sendingTo, msg):
+    message = client.messages.create(
+        to=sendingTo, 
+        from_=TWILIO_SOURCE,
+        body=msg)
+
+def lambda_handler(event, context):
+    print(event)
+    operationsToFunctions = {
+        'REGISTER': handle_registry,
+        'HELP': handle_help,
+        'VIEW': handle_view,
+        'DELETE': handle_delete,
+        'RESERVE': handle_reserve
+    }
+    message = event['Body']
+    print(message)
+    operation = event['Body'].split('+')[0]
+    print(operation)
+    if operation not in operations:
+        print("Operation not supported: " + operation)
+        return ERROR_MESSAGE
+    fromWhom = event['From'].strip()
+    if(fromWhom[:3] == '%2B'):
+        fromWhom = fromWhom[3:]
+    print(fromWhom)
+    msg = operationsToFunctions[operation](message,fromWhom)
+    print(msg)
+    send_sms(fromWhom, msg)
+    return EMPTY_MESSAGE
+
+def handle_help(message, fromWhom):
+    print("HANDLING HELP OPERATION")
+    DEFAULT_HELP_MESSAGE = "There are 4 available operations: REGISTER, VIEW, DELETE, AND RESERVE. For help with an operation, send HELP then an operation."
+    REGISTER_HELP_MESSAGE = "Send a message of the form REGISTER [email address] [password]. Must be your CourtReserve email and password. Separate by spaces.ex) REGISTER nyar99@gmail.com password"
+    VIEW_HELP_MESSAGE = "Send the message VIEW. Displays all upcoming court reservations you have booked."
+    DELETE_HELP_MESSAGE = "Send the message VIEW to see all upcoming reservations. Send DELETE followed by which reservation you would like to delete.ex) DELETE 2"
+    RESERVE_HELP_MESSAGE = "Send a message of the form RESERVE [indoor/outdoor] [time] [date] [length (min)]. Separate by spaces. Does not guarantee you will get a court. ex) RESERVE indoor 7:00PM 5/29 90"
+    operationToMessage = {
+        'REGISTER': REGISTER_HELP_MESSAGE,
+        'VIEW': VIEW_HELP_MESSAGE,
+        'DELETE': DELETE_HELP_MESSAGE,
+        'RESERVE': RESERVE_HELP_MESSAGE,
+        'HELP': DEFAULT_HELP_MESSAGE
+    }
+    args = message.split('+')
+    if (len(args) > 1):
+        if (args[1] in operationToMessage):
+            print("Operation: " + args[1])
+            return operationToMessage[args[1]]
+        else:
+            print("Unsupported operation")
+            return DEFAULT_HELP_MESSAGE
+    print("Default Help Operation")
+    return DEFAULT_HELP_MESSAGE
+        
+    
+    
+def handle_registry(message, fromWhom):
+    REGISTERED_MESSAGE = "You are already registered."
+    SUCESSFUL_REGISTRY = "You are now registered. Send the message HELP."
+    response = userTable.query(KeyConditionExpression=Key('PhoneNumber').eq(fromWhom))
+    items = response['Items']
+    if (len(items)):
+        print('User already registered')
+        return REGISTERED_MESSAGE
+    else: 
+        args = message.split('+')
+        if (len(args) != 3):
+            print('Malformed register request')
+            return ERROR_MESSAGE
+        operation, email, password  = args
+        response = userTable.put_item(
+            Item={
+                'PhoneNumber': fromWhom,
+                'email': email,
+                'password': password
+            }
+        )
+        print('Successful user registry')
+        return SUCCESSFUL_REGISTRY if response['ResponseMetadata']['HTTPStatusCode'] == '200' else ERROR_MESSAGE
+    
+    
+def handle_reserve(message, fromWhom):
+    print("BEGINNING RESERVATION OPERATION")
+    ERROR_RESERVING = "Format Issue. Send HELP RESERVE"
+    SUCCESSFUL_RESERVATION = "Your reservation has been saved."
+    timeFormat = "^\d{1,2}:\d{2}(PM|AM)$"
+    indoorFormat = "(indoor|indoors|INDOOR|INDOORS|outdoor|OUTDOOR|OUTDOORS|outdoors)"
+    dateFormat = "^\d{1,2}\/\d{1,2}$"
+    lengthFormat = "(60|90|120|180)"
+    args = message.split('+')
+    if (len(args) != 5):
+        return ERROR_RESERVING
+    operation, isIndoors, time, date, length = args
+    time = time.replace('%3A',':')
+    date = date.replace('%2F', '/')
+    month = (date.split('/')[0])
+    day = date.split('/')[1]
+    if len(month) == 1 and int(month) < 10:
+        month = '0' + month
+    if len(day) == 1:
+        day = '0' + day
+    date = month + '/' + day
+    print([operation, isIndoors, time, date, length])
+    if (re.search(timeFormat, time) and re.search(indoorFormat, isIndoors) 
+        and re.search(dateFormat, date) and re.search(lengthFormat, length)):
+        response = courtTable.put_item(
+            Item={
+                'PhoneNumber' : fromWhom,
+                'Date' : date,
+                'IsIndoors' : (isIndoors in ["indoor","indoors","INDOORS","INDOOR"]),
+                'Length' : length,
+                'Time' : time[:-2] + ' ' + time[-2:]
+            }
+        )
+        print(response)
+        return SUCCESSFUL_RESERVATION
+    else:
+        return ERROR_RESERVING
+        
+def handle_view(message, fromWhom):
+    NO_COURTS = "You have no court reservations."
+    response = courtTable.query(KeyConditionExpression=Key('PhoneNumber').eq(fromWhom))
+    if (len(response['Items'])):
+        response['Items'].sort(key=lambda x: x['Date'])
+        courtInfo = "Courts:\n"
+        for item in response['Items']:
+            courtInfo += item['Date'] + ' ' + item['Time'] + '\n'
+        return courtInfo
+    else:
+        return NO_COURTS
+    
+def handle_delete(message, fromWhom):
+    ERROR_DELETING = "Could not delete court reservation."
+    SUCCESSFUL_DELETING = "Deleted your court reservation."
+    NO_COURTS = "You have no reservation to delete."
+    operation, courtToDelete = message.split('+')
+    courtToDelete = int(courtToDelete)
+    response = courtTable.query(KeyConditionExpression=Key('PhoneNumber').eq(fromWhom))
+    if len(response['Items']) >= courtToDelete:
+        courtToDelete -= 1
+        response['Items'].sort(key=lambda x: x['Date'])
+        itemToDelete = response['Items'][courtToDelete]
+        returnResponse = courtTable.delete_item(
+            Key={
+                'PhoneNumber': fromWhom,
+                'Date': itemToDelete['Date']
+            }
+        )
+        print(returnResponse)
+        return SUCCESSFUL_DELETING
+    return NO_COURTS
+        
