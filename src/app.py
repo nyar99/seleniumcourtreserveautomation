@@ -3,6 +3,8 @@ from selenium.webdriver.support.wait import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 from selenium import webdriver
 from selenium.webdriver.common.by import By
+from selenium.webdriver.common.keys import Keys
+from selenium.webdriver.chrome.service import Service
 import time as t
 from datetime import datetime
 import ast
@@ -17,7 +19,43 @@ failureDisclosureAgreeClass = 'swal2-confirm'
 submitButtonClass = 'btn-submit'
 slotButtonClass = 'slot-btn'
 
-# uncomment before deploying
+timeToCourtElementIndex = {
+    "7:00 AM" : 0,
+    "7:30 AM" : 1,
+    "8:00 AM" : 2,
+    "8:30 AM" : 3,
+    "9:00 AM" : 4,
+    "9:30 AM" : 5,
+    "10:00 AM" : 6,
+    "10:30 AM" : 7,
+    "11:00 AM" : 8,
+    "11:30 AM" : 9,
+    "12:00 PM" : 10,
+    "12:30 PM" : 11,
+    "1:00 PM" : 12,
+    "1:30 PM" : 13,
+    "2:00 PM" : 14,
+    "2:30 PM" : 15,
+    "3:00 PM" : 16,
+    "3:30 PM" : 17,
+    "4:00 PM" : 18,
+    "4:30 PM" : 19,
+    "5:00 PM" : 20,
+    "5:30 PM" : 21,
+    "6:00 PM" : 22,
+    "6:30 PM" : 23,
+    "7:00 PM" : 24,
+    "7:30 PM" : 25,
+    "8:00 PM" : 26,
+    "8:30 PM" : 27,
+    "9:00 PM" : 28,
+    "9:30 PM" : 29,
+    "10:00 PM": 30,
+    "10:30 PM": 31
+}
+
+# headless chrome options
+service = Service("/opt/chromedriver")
 chrome_options = webdriver.ChromeOptions()
 chrome_options.binary_location = "/opt/chrome/chrome"
 chrome_options.add_argument("--headless")
@@ -28,10 +66,10 @@ chrome_options.add_argument("--disable-dev-tools")
 chrome_options.add_argument("--no-zygote")
 chrome_options.add_argument("--single-process")
 chrome_options.add_argument("window-size=2560x1440")
-chrome_options.add_argument("--user-data-dir=/tmp/chrome-user-data")
-chrome_options.add_argument("--remote-debugging-port=9222")
-driver = webdriver.Chrome("/opt/chromedriver", options=chrome_options)
-driver = webdriver.Chrome()
+driver = webdriver.Chrome(service=service, options=chrome_options)
+
+# local chrome options
+# driver = webdriver.Chrome("chromedriver/chromedriver.exe")
 
 def format_time(input_time: datetime) -> str:
     """Format datetime object into H:M time str"""
@@ -63,7 +101,7 @@ def login(user = 'nyar99@gmail.com', passcode = '********'):
     except:
         print("Login flow failed")
     
-def get_available_courts(day = 0, indoor = False):
+def get_available_courts(day = 0, indoor = False, time = '6:00 PM'):
     """Get available courts at NTC"""
     reservationLink = "https://app.courtreserve.com/Online/Reservations/Bookings/5881?sId=294" if indoor else "https://app.courtreserve.com/Online/Reservations/Bookings/5881?sId=295"
     driver.get(reservationLink)
@@ -82,60 +120,70 @@ def get_available_courts(day = 0, indoor = False):
     times = schedulingTable[-2].find_elements(By.TAG_NAME, "small")
 
     courtItems = driver.find_elements(By.CLASS_NAME, courtItemContainerClass)
-    timeToCourtElement = {}
-
-    for i in range(len(times)):
-        courtItems = driver.find_elements(By.CLASS_NAME, courtItemContainerClass)
+    courtItemException = 0
+    while(courtItemException <= 20):
         try:
-            courtElement = courtItems[i].find_element(By.TAG_NAME, 'a')
-            timeToCourtElement[times[i].text] = courtElement
-            print('found available court', times[i].text)
+            courtItems = driver.find_elements(By.CLASS_NAME, courtItemContainerClass)
+            courtElement = courtItems[timeToCourtElementIndex[time]].find_element(By.TAG_NAME, 'a')
+            ActionChains(driver) \
+                .pause(2) \
+                .move_to_element(courtElement) \
+                .perform()
+            return courtElement
         except:
-            print('Time not available ', times[i].text)
-    driver.implicitly_wait(5)
-    return timeToCourtElement
+            courtItemException += 1
+            print("Could not get time or court not available")
+    print('found available court', times[i].text)
+    return None
 
-def reserve_court(timeToCourtElement: dict, time: str, length: int) -> bool:
+def reserve_court(timeToCourtElement, time: str, length: int) -> bool:
     """Attempt to reserve court at NTC for specified time"""
     print("Trying to reserve court for time: " + time)
-    try:
-        if time not in timeToCourtElement:
-            print("Court container did not properly load")
-            return False
-        timeToCourtElement[time].click()
-        disclosureElement = WebDriverWait(driver, 10).until(
-            EC.presence_of_element_located((By.CLASS_NAME, disclosureAgreeClass))
-        )
-        disclosureElement.click()
-        t.sleep(2)
-        timeOptions = driver.find_elements(By.CLASS_NAME, selectLengthOfPlayClass)
-        while len(timeOptions) <= 4:
-            timeOptions = driver.find_elements(By.CLASS_NAME, selectLengthOfPlayClass)
-        driver.implicitly_wait(2)
-        print('Found Time Options')
-        driver.execute_script("arguments[0].click();", timeOptions[length//30 - 1])
+    if (timeToCourtElement != None):
         try:
+            timeToCourtElement.click()
+            disclosureElement = WebDriverWait(driver, 10).until(
+                EC.presence_of_element_located((By.CLASS_NAME, disclosureAgreeClass))
+            )
+            disclosureElement.click()
+            t.sleep(2)
+            timeOptions = driver.find_elements(By.CLASS_NAME, selectLengthOfPlayClass)
+            while len(timeOptions) <= 4:
+                timeOptions = driver.find_elements(By.CLASS_NAME, selectLengthOfPlayClass)
+            driver.implicitly_wait(2)
+            print('Found Time Options')
             driver.execute_script("arguments[0].click();", timeOptions[length//30 - 1])
+            try:
+                driver.execute_script("arguments[0].click();", timeOptions[length//30 - 1])
+            except Exception as e:
+                print(e)
+                timeOptions = driver.find_elements(By.CLASS_NAME, selectLengthOfPlayClass)
+                driver.execute_script("arguments[0].click();", timeOptions[length//30 - 1])
+            print("Play Options selected")
+            while(driver.current_url != 'https://app.courtreserve.com/Online/Payments/ProcessPayment/5881'):
+                try:
+                    driver.implicitly_wait(0.25)
+                    if (driver.find_elements(By.CLASS_NAME, failurePopupClass)):
+                        print("Found disclosure")
+                        driver.find_element(By.CLASS_NAME, failureDisclosureAgreeClass).click()
+                    driver.find_element(By.CLASS_NAME, submitButtonClass).click()
+                    driver.implicitly_wait(0.25)
+                except Exception as e:
+                    print("Reached some exception while stalling")
+                    print(e)
+                    continue
+            driver.implicitly_wait(5)
+            if (driver.find_element(By.ID, 'PayButton')):
+                driver.find_element(By.ID, 'PayButton').click()
+                print("Court successfully reserved")
+                return True
+            else:
+                return False
         except Exception as e:
             print(e)
-            timeOptions = driver.find_elements(By.CLASS_NAME, selectLengthOfPlayClass)
-            driver.execute_script("arguments[0].click();", timeOptions[length//30 - 1])
-        print("Play Options selected")
-        try:
-            while(driver.current_url != 'https://app.courtreserve.com/Online/Payments/ProcessPayment/5881'):
-                driver.implicitly_wait(0.25)
-                if (driver.find_elements(By.CLASS_NAME, failurePopupClass)):
-                    print("Found disclosure")
-                    driver.find_element(By.CLASS_NAME, failureDisclosureAgreeClass).click()
-                driver.find_element(By.CLASS_NAME, submitButtonClass).click()
-                driver.implicitly_wait(0.25)
-        finally:
-            print("Court successfully reserved")
-            driver.implicitly_wait(5)
-            # driver.find_element(By.ID, 'PayButton').click()
-            return True
-    except Exception as e:
-        print(e)
+            return False
+    else:
+        print("Court not available")
         return False
 def handler(event, context):
     item = event['body']
@@ -153,13 +201,15 @@ def handler(event, context):
     indoors = item['IsIndoors']
     executionSucceeded = False
     firstExecution = True
+    executions = 0
 
     login(user, password)
-    while (not executionSucceeded):
-        map = get_available_courts(daysAhead, indoors) if firstExecution else get_available_courts(0)
+    while (not executionSucceeded and executions <= 5):
+        map = get_available_courts(daysAhead, indoors, time) if firstExecution else get_available_courts(0, indoors, time)
         executionSucceeded = reserve_court(map, time, int(length))
+        executions += 1
         firstExecution = False
 
-# comment before deploying
-# item = '{"User":"nyar99@gmail.com", "Pass": "*********", "Time":"10:00 PM", "Length": 60, "IsIndoors": false, "DaysAhead": 1}'
+# local run config
+# item = '{"User":"nyar99@gmail.com", "Pass": "password", "Time":"7:00 AM", "Length": 120, "IsIndoors": true, "DaysAhead": 2}'
 # handler({'body':item}, None)
