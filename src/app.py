@@ -110,6 +110,7 @@ def get_available_courts(day = 0, indoor = False, time = '6:00 PM'):
     changeDate = driver.find_element(By.CLASS_NAME, nextDayButtonClass)
     for i in range(day):
         changeDate.click()
+        print("changed day")
         driver.implicitly_wait(3)
     driver.implicitly_wait(3)
     
@@ -129,11 +130,12 @@ def get_available_courts(day = 0, indoor = False, time = '6:00 PM'):
                 .pause(2) \
                 .move_to_element(courtElement) \
                 .perform()
+            print("found available court")
             return courtElement
         except:
             courtItemException += 1
             print("Could not get time or court not available")
-    print('found available court', times[i].text)
+    print('failed to see court after 20 iterations', time)
     return None
 
 def reserve_court(timeToCourtElement, time: str, length: int) -> bool:
@@ -174,7 +176,7 @@ def reserve_court(timeToCourtElement, time: str, length: int) -> bool:
                     continue
             driver.implicitly_wait(5)
             if (driver.find_element(By.ID, 'PayButton')):
-                driver.find_element(By.ID, 'PayButton').click()
+                # driver.find_element(By.ID, 'PayButton').click()
                 print("Court successfully reserved")
                 return True
             else:
@@ -189,8 +191,6 @@ def handler(event, context):
     item = event['body']
     item = item.replace('true', 'True')
     item = item.replace('false', 'False')
-    print(item)
-    print(type(item))
     item = ast.literal_eval(item)
     print(item)
     user = item['User']
@@ -205,11 +205,15 @@ def handler(event, context):
 
     login(user, password)
     while (not executionSucceeded and executions <= 5):
-        map = get_available_courts(daysAhead, indoors, time) if firstExecution else get_available_courts(0, indoors, time)
-        executionSucceeded = reserve_court(map, time, int(length))
+        # date is persisted across refreshes
+        if (firstExecution):
+            courtItem = get_available_courts(daysAhead, indoors, time)
+            firstExecution = False
+        else:
+            get_available_courts(0, indoors, time)
+        executionSucceeded = reserve_court(courtItem, time, int(length))
         executions += 1
-        firstExecution = False
 
 # local run config
-# item = '{"User":"nyar99@gmail.com", "Pass": "password", "Time":"7:00 AM", "Length": 120, "IsIndoors": true, "DaysAhead": 2}'
+# item = '{"User":"nyar99@gmail.com", "Pass": "password", "Time":"10:00 AM", "Length": 60, "IsIndoors": true, "DaysAhead": 1}'
 # handler({'body':item}, None)
