@@ -52,7 +52,8 @@ def selectTime(time, daysAhead):
                     confirmPlayerString = "Confirm and Enter Player Details"
                     driver.find_element(By.XPATH, f"//input[@value='{confirmPlayerString}']").click()
                     return True
-                except NoSuchElementException as e:
+                except Exception as e:
+                    print(e)
                     continue
     return False
 
@@ -72,6 +73,16 @@ def fillInDetails(lengthOfPlay):
     driver.find_element(By.XPATH, "//input[@value='Continue to Payment']").click()
     pass
 
+def fillInPaymentInfo():
+    driver.find_element(By.ID, 'cc_number').send_keys('1234567890123456')
+    driver.find_elements(By.ID, 'expdate_month')[1].send_keys('12')
+    driver.find_elements(By.ID, 'expdate_year')[1].send_keys('2023')
+    driver.find_element(By.ID, 'cvv2_number').send_keys('123')
+    driver.find_element(By.ID, 'btn_pay_cc').click()
+    pass
+
 selectDate(6)       
-if (selectTime('4:00 PM', 6)):
+if (selectTime('3:00 PM', 6)):
     fillInDetails(60)
+    driver.implicitly_wait(10)
+    fillInPaymentInfo()
