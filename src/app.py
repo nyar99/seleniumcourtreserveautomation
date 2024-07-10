@@ -8,9 +8,10 @@ from selenium.webdriver.chrome.service import Service
 import time as t
 from datetime import datetime
 import ast
+from webdriver_manager.chrome import ChromeDriverManager
 
 nextDayButtonClass = 'k-nav-next'
-scheduleTableClass = "k-scheduler-table"
+scheduleTableClass = 'k-scheduler-table'
 courtItemContainerClass = 'consolidate-item-container'
 disclosureAgreeClass = 'rowCheckbox'
 selectLengthOfPlayClass = 'k-list-item-text'
@@ -68,8 +69,12 @@ chrome_options.add_argument("--single-process")
 chrome_options.add_argument("window-size=2560x1440")
 driver = webdriver.Chrome(service=service, options=chrome_options)
 
-# local chrome options
-# driver = webdriver.Chrome("chromedriver/chromedriver.exe")
+# local chrome options on windows
+# driver = webdriver.Chrome(ChromeDriverManager().install())
+
+
+# local chrome options on mac
+# driver = webdriver.Chrome()
 
 def format_time(input_time: datetime) -> str:
     """Format datetime object into H:M time str"""
@@ -86,7 +91,7 @@ def military_to_standard(military_time) -> str:
     return standard_time
 
 # Login flow
-def login(user = 'nyar99@gmail.com', passcode = '********'):
+def login(user = 'sameerpusapaty@gmail.com', passcode = 'password'):
     """Login to Court Reserve API"""
     driver.get('https://app.courtreserve.com/Online/Account/LogIn/5881')
     try:
@@ -96,10 +101,12 @@ def login(user = 'nyar99@gmail.com', passcode = '********'):
 
         username.send_keys(user)
         password.send_keys(passcode)
-
         driver.find_element(By.TAG_NAME, "button").click()
-    except:
+        return True
+    except Exception as e:
         print("Login flow failed")
+        print(e)
+        return False
     
 def get_available_courts(day = 0, indoor = False, time = '6:00 PM'):
     """Get available courts at NTC"""
@@ -176,7 +183,7 @@ def reserve_court(timeToCourtElement, time: str, length: int) -> bool:
                     continue
             driver.implicitly_wait(5)
             if (driver.find_element(By.ID, 'PayButton')):
-                # driver.find_element(By.ID, 'PayButton').click()
+                driver.find_element(By.ID, 'PayButton').click()
                 print("Court successfully reserved")
                 return True
             else:
@@ -202,9 +209,17 @@ def handler(event, context):
     executionSucceeded = False
     firstExecution = True
     executions = 0
+    loginSucceeded = False
+    loginExecutions = 0
 
-    login(user, password)
-    while (not executionSucceeded and executions <= 5):
+    while (not loginSucceeded and loginExecutions < 5):
+        if (login(user, password)):
+            loginSucceeded = True
+        else:
+            loginExecutions += 1
+    if (loginSucceeded == False):
+        raise(Exception("Failed to login"))
+    while (not executionSucceeded and executions < 5):
         # date is persisted across refreshes
         if (firstExecution):
             courtItem = get_available_courts(daysAhead, indoors, time)
@@ -215,5 +230,5 @@ def handler(event, context):
         executions += 1
 
 # local run config
-# item = '{"User":"nyar99@gmail.com", "Pass": "password", "Time":"10:00 AM", "Length": 60, "IsIndoors": true, "DaysAhead": 1}'
+# item = "{'User': 'sameerpusapaty@gmail.com', 'Pass': 'password', 'Time': '7:00 AM', 'DaysAhead': 2, 'IsIndoors': False, 'Length': '60'}"
 # handler({'body':item}, None)
