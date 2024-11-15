@@ -55,21 +55,22 @@ timeToCourtElementIndex = {
 }
 
 # headless chrome options
-service = Service("/opt/chromedriver")
-chrome_options = webdriver.ChromeOptions()
-chrome_options.binary_location = "/opt/chrome/chrome"
-chrome_options.add_argument("--headless")
-chrome_options.add_argument("--no-sandbox")
-chrome_options.add_argument("--disable-dev-shm-usage")
-chrome_options.add_argument("--disable-gpu")
-chrome_options.add_argument("--disable-dev-tools")
-chrome_options.add_argument("--no-zygote")
-chrome_options.add_argument("--single-process")
-chrome_options.add_argument("window-size=2560x1440")
-driver = webdriver.Chrome(service=service, options=chrome_options)
+# service = Service("/opt/chromedriver")
+# chrome_options = webdriver.ChromeOptions()
+# chrome_options.binary_location = "/opt/chrome/chrome"
+# chrome_options.add_argument("--headless")
+# chrome_options.add_argument("--no-sandbox")
+# chrome_options.add_argument("--disable-dev-shm-usage")
+# chrome_options.add_argument("--disable-gpu")
+# chrome_options.add_argument("--disable-dev-tools")
+# chrome_options.add_argument("--no-zygote")
+# chrome_options.add_argument("--single-process")
+# chrome_options.add_argument("window-size=2560x1440")
+# driver = webdriver.Chrome(service=service, options=chrome_options)
 
-# local chrome options
-# driver = webdriver.Chrome("chromedriver/chromedriver.exe")
+#local chrome options
+service = webdriver.ChromeService(executable_path="chromedriver")
+driver = webdriver.Chrome()
 
 def format_time(input_time: datetime) -> str:
     """Format datetime object into H:M time str"""
@@ -86,7 +87,7 @@ def military_to_standard(military_time) -> str:
     return standard_time
 
 # Login flow
-def login(user = 'nyar99@gmail.com', passcode = '********'):
+def login(user = 'sameerpusapaty@gmail.com', passcode = 'password'):
     """Login to Court Reserve API"""
     driver.get('https://app.courtreserve.com/Online/Account/LogIn/5881')
     try:
@@ -154,7 +155,6 @@ def reserve_court(timeToCourtElement, time: str, length: int) -> bool:
                 timeOptions = driver.find_elements(By.CLASS_NAME, selectLengthOfPlayClass)
             driver.implicitly_wait(2)
             print('Found Time Options')
-            driver.execute_script("arguments[0].click();", timeOptions[length//30 - 1])
             try:
                 driver.execute_script("arguments[0].click();", timeOptions[length//30 - 1])
             except Exception as e:
@@ -168,15 +168,16 @@ def reserve_court(timeToCourtElement, time: str, length: int) -> bool:
                     if (driver.find_elements(By.CLASS_NAME, failurePopupClass)):
                         print("Found disclosure")
                         driver.find_element(By.CLASS_NAME, failureDisclosureAgreeClass).click()
-                    driver.find_element(By.CLASS_NAME, submitButtonClass).click()
-                    driver.implicitly_wait(0.25)
+                        print("Clicked failure disclosure")
+                    if (driver.current_url != 'https://app.courtreserve.com/Online/Payments/ProcessPayment/5881'):
+                        driver.find_element(By.CLASS_NAME, submitButtonClass).click()
+                        print("Clicked submit button")
                 except Exception as e:
                     print("Reached some exception while stalling")
                     print(e)
                     continue
-            driver.implicitly_wait(5)
             if (driver.find_element(By.ID, 'PayButton')):
-                # driver.find_element(By.ID, 'PayButton').click()
+                #driver.find_element(By.ID, 'PayButton').click()
                 print("Court successfully reserved")
                 return True
             else:
@@ -215,5 +216,5 @@ def handler(event, context):
         executions += 1
 
 # local run config
-# item = '{"User":"nyar99@gmail.com", "Pass": "password", "Time":"10:00 AM", "Length": 60, "IsIndoors": true, "DaysAhead": 1}'
-# handler({'body':item}, None)
+item = '{"User":"sameerpusapaty@gmail.com", "Pass": "password", "Time":"9:00 PM", "Length": 120, "IsIndoors": false, "DaysAhead": 2}'
+handler({'body':item}, None)

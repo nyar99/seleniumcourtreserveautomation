@@ -74,15 +74,17 @@ def fillInDetails(lengthOfPlay):
     pass
 
 def fillInPaymentInfo():
+    iframe_element = driver.find_element(By.CLASS_NAME, 'fancybox-iframe')
+    driver.switch_to.frame(iframe_element)
     driver.find_element(By.ID, 'cc_number').send_keys('1234567890123456')
-    driver.find_elements(By.ID, 'expdate_month')[1].send_keys('12')
-    driver.find_elements(By.ID, 'expdate_year')[1].send_keys('2023')
+    driver.find_element(By.ID, 'expdate_month').send_keys('12')
+    driver.find_element(By.ID, 'expdate_year').send_keys('2023')
     driver.find_element(By.ID, 'cvv2_number').send_keys('123')
     driver.find_element(By.ID, 'btn_pay_cc').click()
     pass
 
 selectDate(6)       
-if (selectTime('3:00 PM', 6)):
+if (selectTime('5:00 PM', 6)):
     fillInDetails(60)
     driver.implicitly_wait(10)
     fillInPaymentInfo()
