@@ -99,8 +99,11 @@ def login(user = 'sameerpusapaty@gmail.com', passcode = 'password'):
         password.send_keys(passcode)
 
         driver.find_element(By.TAG_NAME, "button").click()
-    except:
+        return True
+    except Exception as e:
         print("Login flow failed")
+        print(e)
+        return False
     
 def get_available_courts(day = 0, indoor = False, time = '6:00 PM'):
     """Get available courts at NTC"""
