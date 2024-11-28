@@ -1,4 +1,4 @@
-from datetime import datetime
+from datetime import datetime, timedelta
 from datetime import date
 import pytz
 
@@ -55,3 +55,25 @@ def compare_date_to_today(inputDate: str):
     month, day = inputDate.split('/')[0], inputDate.split('/')[1]
     inputDateTime = date(today.year, int(month), int(day))
     return (inputDateTime - today).days
+
+def wait_until_time(timeToGet, daysAhead):
+    """Wait until the minutes of the time are either :00 or :30"""
+    # we should run this method if the difference between the current time and the time we want to reserve is > 48 hours
+    if (hours_til_reservation(timeToGet, daysAhead) > 48):
+        while True:
+            now = datetime.now()
+            if now.minute == 0 or now.minute == 30:
+                break
+            t.sleep(0.001)
+        return
+    else:
+        return
+
+def hours_til_reservation(timeToGet, daysAhead):
+    """Return the number of hours until timeToGet"""
+    nowNy = return_NY_time()
+    d = datetime.strptime(timeToGet, "%I:%M %p")
+    targetDt = nowNy + timedelta(days=daysAhead)
+    targetDt = targetDt.replace(hour=d.hour, minute=d.minute, second=0, microsecond=0)
+    secondsDiff = (targetDt - nowNy).total_seconds()
+    return secondsDiff / (60 * 60)

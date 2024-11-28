@@ -6,7 +6,8 @@ from selenium.webdriver.common.by import By
 from selenium.webdriver.common.keys import Keys
 from selenium.webdriver.chrome.service import Service
 import time as t
-from datetime import datetime
+from datetime import datetime, timedelta
+import pytz
 import ast
 
 nextDayButtonClass = 'k-nav-next'
@@ -72,19 +73,33 @@ timeToCourtElementIndex = {
 service = webdriver.ChromeService(executable_path="chromedriver")
 driver = webdriver.Chrome()
 
-def format_time(input_time: datetime) -> str:
-    """Format datetime object into H:M time str"""
-    return input_time.strftime("%H:%M")
+def return_NY_time() -> datetime:
+    """Return current time in NY"""
+    tz_NY = pytz.timezone('America/New_York') 
+    datetime_NY = datetime.now(tz_NY)
+    return datetime_NY
 
-def military_to_standard(military_time) -> str:
-    """Convert from military time to standard, adding AM/PM suffix. Military time must be given in 'H:M'"""
-    standard_time = ""
-    if int(military_time[:military_time.find(':')]) > 12:
-        standard_time += str(int(military_time[:2]) - 12) + military_time[2:] + ' PM'
+def wait_until_time(timeToGet, daysAhead):
+    """Wait until the minutes of the time are either :00 or :30"""
+    # we should run this method if the difference between the current time and the time we want to reserve is > 48 hours
+    if (hours_til_reservation(timeToGet, daysAhead) > 48):
+        while True:
+            now = datetime.now()
+            if now.minute == 0 or now.minute == 30:
+                break
+            t.sleep(0.001)
+        return
     else:
-        standard_time = military_time
-        standard_time += ' AM'
-    return standard_time
+        return
+
+def hours_til_reservation(timeToGet, daysAhead):
+    """Return the number of hours until timeToGet"""
+    nowNy = return_NY_time()
+    d = datetime.strptime(timeToGet, "%I:%M %p")
+    targetDt = nowNy + timedelta(days=daysAhead)
+    targetDt = targetDt.replace(hour=d.hour, minute=d.minute, second=0, microsecond=0)
+    secondsDiff = (targetDt - nowNy).total_seconds()
+    return secondsDiff / (60 * 60)
 
 # Login flow
 def login(user = 'sameerpusapaty@gmail.com', passcode = 'password'):
@@ -142,7 +157,7 @@ def get_available_courts(day = 0, indoor = False, time = '6:00 PM'):
     print('failed to see court after 20 iterations', time)
     return None
 
-def reserve_court(timeToCourtElement, time: str, length: int) -> bool:
+def reserve_court(timeToCourtElement, time: str, length: int, daysAhead: int) -> bool:
     """Attempt to reserve court at NTC for specified time"""
     print("Trying to reserve court for time: " + time)
     if (timeToCourtElement != None):
@@ -165,20 +180,17 @@ def reserve_court(timeToCourtElement, time: str, length: int) -> bool:
                 timeOptions = driver.find_elements(By.CLASS_NAME, selectLengthOfPlayClass)
                 driver.execute_script("arguments[0].click();", timeOptions[length//30 - 1])
             print("Play Options selected")
+            try:
+                driver.implicitly_wait(1)
+                wait_until_time(time, daysAhead)
+                if (driver.current_url != 'https://app.courtreserve.com/Online/Payments/ProcessPayment/5881'):
+                    driver.find_element(By.CLASS_NAME, submitButtonClass).click()
+                    print("Clicked submit button")
+            except Exception as e:
+                print("Reached some exception while stalling")
+                print(e)
             while(driver.current_url != 'https://app.courtreserve.com/Online/Payments/ProcessPayment/5881'):
-                try:
-                    driver.implicitly_wait(0.25)
-                    if (driver.find_elements(By.CLASS_NAME, failurePopupClass)):
-                        print("Found disclosure")
-                        driver.find_element(By.CLASS_NAME, failureDisclosureAgreeClass).click()
-                        print("Clicked failure disclosure")
-                    if (driver.current_url != 'https://app.courtreserve.com/Online/Payments/ProcessPayment/5881'):
-                        driver.find_element(By.CLASS_NAME, submitButtonClass).click()
-                        print("Clicked submit button")
-                except Exception as e:
-                    print("Reached some exception while stalling")
-                    print(e)
-                    continue
+                t.sleep(1)
             if (driver.find_element(By.ID, 'PayButton')):
                 #driver.find_element(By.ID, 'PayButton').click()
                 print("Court successfully reserved")
@@ -191,6 +203,7 @@ def reserve_court(timeToCourtElement, time: str, length: int) -> bool:
     else:
         print("Court not available")
         return False
+
 def handler(event, context):
     item = event['body']
     item = item.replace('true', 'True')
@@ -215,9 +228,9 @@ def handler(event, context):
             firstExecution = False
         else:
             get_available_courts(0, indoors, time)
-        executionSucceeded = reserve_court(courtItem, time, int(length))
+        executionSucceeded = reserve_court(courtItem, time, int(length), daysAhead)
         executions += 1
 
 # local run config
-item = '{"User":"sameerpusapaty@gmail.com", "Pass": "password", "Time":"9:00 PM", "Length": 120, "IsIndoors": false, "DaysAhead": 2}'
+item = '{"User":"sameerpusapaty@gmail.com", "Pass": "password", "Time":"9:00 PM", "Length": 60, "IsIndoors": false, "DaysAhead": 2}'
 handler({'body':item}, None)
